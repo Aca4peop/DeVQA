@@ -1,16 +1,9 @@
-'''
-code for intradataset evaluation
-'''
-import math
-import pickle
+
 import warnings
-from matplotlib import pyplot as plt
-from tqdm import trange
+from argparse import ArgumentParser
 
-plt.rcParams['font.family'] = 'Times New Roman'
-plt.rcParams['font.size'] = 16
+from tqdm import trange,tqdm
 warnings.filterwarnings('ignore', category=FutureWarning)
-
 import os.path
 import torch
 from torch.optim import AdamW,SGD
@@ -19,8 +12,8 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from scipy import stats
 from SoftLabel import Labeler
-from TDENetworkv5 import SingleBrach,adaptor
-from datasets.DataSource import KonVid,LiveVQC,LIVEQACOM
+from models.vqa import SingleBrach
+from datasets.DataSource import LiveVQC,CVD2014,KonVid,LIVEVQA
 import torch.nn.functional as F
 
 def rmse(target,predict):
@@ -28,42 +21,51 @@ def rmse(target,predict):
 
 
 class MMFeat(Dataset):
-    def __init__(self, info,fpath):
+    def __init__(self, info,fpath,flag):
         self.images = info['files']
         self.dmos = info['scores']
         self.fpath=fpath
+        self.flag=flag
 
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, index):
         vname = self.images[index]
-        feat_v=np.load(os.path.join(self.fpath,vname[:-4]+'_visual.npy'))
+        feat_v=np.load(os.path.join(self.fpath,vname[:-4]+'_%s.npy'%self.flag))
         dmos=self.dmos[index]
         sample = {'feat': feat_v, 'label': dmos}
         return sample
 
 
 if __name__ == "__main__":
+    parser = ArgumentParser(description="Train visual (conventional) and textual (counterfactual) branches")
+    parser.add_argument("--type", type=str, help="Branch Type, visual or text.")
+    parser.add_argument("--database", type=str, help="Database name.")
+    args = parser.parse_args()
+    datasets={'konvid-1k':KonVid,'live-vqa':LIVEVQA,'live-vqc':LiveVQC,'cvd2014':CVD2014}
+    namings = {'konvid-1k': 'KonVid', 'live-vqa': 'LIVEVQA', 'live-vqc': 'LiveVQC', 'cvd2014': 'CVD2014'}
+    assert args.type in ['visual','text']
     device = torch.device("cuda")
     # parameters
-    videoset=LIVEQACOM()
-    ft_path='/home/hzy/PycharmProjects/BLIP_Caption/blip2/Qua/'
+    videoset=datasets[str(args.type)]()
+    ft_path='./cache/features/%s/' % namings[args.database]
 
     srccs=np.zeros((5,))
     rmses=np.zeros((5,))
     plccs=np.zeros((5,))
-
+    if not os.path.exists('./cache/model/'):
+        os.mkdir('./cache/model/')
     records={}
     for rounder in range(5):
         trains,tests=videoset.get_five_folds(rounder)
-        train_set = MMFeat(trains, fpath=ft_path)
-        test_set = MMFeat(tests, fpath=ft_path)
+        train_set = MMFeat(trains, fpath=ft_path,flag=args.type)
+        test_set = MMFeat(tests, fpath=ft_path,flag=args.type)
 
-        dataloader = DataLoader(train_set, batch_size=16, shuffle=True, num_workers=4,pin_memory=True)
+        dataloader = DataLoader(train_set, batch_size=8, shuffle=True, num_workers=4,pin_memory=True)
         testloader = DataLoader(test_set, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
 
-        model=SingleBrach(1408,384).cuda()
+        model=SingleBrach(640,320).cuda()
         optimizer = AdamW([{'params': model.parameters()}], lr=3e-4)
         kl = nn.KLDivLoss(reduction="batchmean")
         mse = nn.MSELoss()
@@ -71,7 +73,7 @@ if __name__ == "__main__":
         lab=Labeler(videoset.scores)
         srcc_q=0
         rmse_q=0
-        for epoch in trange(300):
+        for epoch in trange(100):
 
             # ------train-------------
             model.train()
@@ -114,12 +116,15 @@ if __name__ == "__main__":
                 srcc_vis, _ = stats.spearmanr(pre_vis[1:], tar[1:])
                 rmse_vis = rmse(pre_vis[1:], tar[1:])
                 plcc_vis, _ = stats.pearsonr(pre_vis[1:], tar[1:])
+                tqdm.write('Fold %d , epoch %d , SRCC %.4f , PLCC %.4f, RMSE %.4f'%(rounder, epoch, srcc_vis, plcc_vis, rmse_vis))
+
 
                 if srcc_vis > sroccbest_q:
                     sroccbest_q = srcc_vis
                     srccs[rounder] = srcc_vis
                     rmses[rounder] = rmse_vis
                     plccs[rounder] = plcc_vis
+                torch.save(model.state_dict(),'./cache/model/%s_%s_%d.pth'%(namings[args.database],args.type,rounder))
 
     print('-------------Summary----------------')
     print('SRCC : %.4f PLCC %.4f RMSE %.4f'%(np.mean(srccs[:]),np.mean(srccs[:]),np.mean(srccs[:])))

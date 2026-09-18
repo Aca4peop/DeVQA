@@ -53,18 +53,32 @@ class SingleBrach(nn.Module):
         q=q.mean(dim=1)
         return q
 
-class adaptor(nn.Module):
+    def inference(self,x):
+        B, V, T, D = x.shape
+        x = x.view(B * V, T, D)
+        x = self.temp(x)
+        x = x.mean(dim=-2)
+        q = self.mlp1(x)
+        # x=self.pool(x)
+        q = q.view(B, V, 5)
+        q = q.mean(dim=1)
+        return q,x.view(B,V,-1).mean(dim=1)
+
+class Adaptor(nn.Module):
     def __init__(self,dim_in=640,dim_hid1=640):
-        super(adaptor,self).__init__()
+        super(Adaptor,self).__init__()
         self.proj1=nn.Linear(dim_in,dim_hid1)
         self.proj2=nn.Linear(dim_in,dim_hid1)
 
-        self.fc=nn.Linear(dim_hid1,5)
+        # self.fc=nn.Linear(dim_hid1,5)
+        self.fc=nn.Sequential(nn.Linear(dim_hid1*2,dim_hid1),nn.ReLU(),nn.Linear(dim_hid1,5))
 
-    def forward(self,x,y):
-        x=self.proj1(x)
-        y=self.proj2(y)
-        diff=x-y
+    def forward(self,fx,fy,qx,qy):
+        fx=self.proj1(fx)
+        fy=self.proj2(fy)
+        diff=torch.cat((fx-fy,fx*fy),dim=-1)
         w=self.fc(diff)
-        w=F.sigmoid(w).mean(dim=-2).mean(1)
-        return w
+        w=F.sigmoid(w)
+        q=qx-w*qy
+        q=torch.clip(q,min=0)
+        return q

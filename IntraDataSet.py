@@ -1,9 +1,6 @@
 '''
 code for intradataset evaluation
 '''
-import math
-import pickle
-import shutil
 import warnings
 
 from matplotlib import pyplot as plt
@@ -13,14 +10,14 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 
 import os.path
 import torch
-from torch.optim import AdamW,SGD
+from torch.optim import AdamW
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from scipy import stats
 from SoftLabel import Labeler
-from models import VQAModel,SingleBrach,adaptor
-from datasets.DataSource import KonVid,LiveVQC,LIVEQACOM
+from models.vqa import SingleBrach,adaptor
+from datasets.DataSource import LiveVQC
 import torch.nn.functional as F
 
 def rmse(target,predict):
