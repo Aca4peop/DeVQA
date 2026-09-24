@@ -50,7 +50,7 @@ if __name__ == "__main__":
     namings = {'konvid-1k': 'KonVid', 'live-vqa': 'LIVEVQA', 'live-vqc': 'LiveVQC', 'cvd2014': 'CVD2014'}
     device = torch.device("cuda")
     # parameters
-    videoset = datasets[str(args.type)]()
+    videoset = datasets[str(args.database)]()
     ft_path = './cache/features/%s/' % namings[args.database]
 
     srccs=np.zeros((5,3))
@@ -166,7 +166,7 @@ if __name__ == "__main__":
                     srccs[rounder, 2] = srcc_tde
                     rmses[rounder, 2] = rmse_tde
                     plccs[rounder, 2] = plcc_tde
-                    # torch.save(model.state_dict(),'./model_cache/adapter/vqc%d.pth'%rounder)
+                    # torch.save({'vis':visualb.state_dict(),'txt':textb.state_dict(),'adp':adaptor.state_dict()},'./model%d.pth'%rounder)
 
     print('-------------Summary----------------')
     print('       SRCC  | PLCC  | RMSE')

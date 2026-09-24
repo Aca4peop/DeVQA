@@ -48,7 +48,7 @@ if __name__ == "__main__":
     assert args.type in ['visual','text']
     device = torch.device("cuda")
     # parameters
-    videoset=datasets[str(args.type)]()
+    videoset=datasets[str(args.database)]()
     ft_path='./cache/features/%s/' % namings[args.database]
 
     srccs=np.zeros((5,))
@@ -124,10 +124,10 @@ if __name__ == "__main__":
                     srccs[rounder] = srcc_vis
                     rmses[rounder] = rmse_vis
                     plccs[rounder] = plcc_vis
-                torch.save(model.state_dict(),'./cache/model/%s_%s_%d.pth'%(namings[args.database],args.type,rounder))
+                    torch.save(model.state_dict(),'./cache/model/%s_%s_%d.pth'%(namings[args.database],args.type,rounder))
 
     print('-------------Summary----------------')
-    print('SRCC : %.4f PLCC %.4f RMSE %.4f'%(np.mean(srccs[:]),np.mean(srccs[:]),np.mean(srccs[:])))
+    print('SRCC : %.4f PLCC %.4f RMSE %.4f'%(np.mean(srccs[:]),np.mean(plccs[:]),np.mean(rmses[:])))
 
 
 

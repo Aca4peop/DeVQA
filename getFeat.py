@@ -1,8 +1,6 @@
 import os
 from argparse import ArgumentParser
 
-os.environ['http_proxy']='10.108.10.93:7890'
-os.environ['https_proxy']='10.108.10.93:7890'
 # os.environ['HF_ENDPOINT']='https://hf-mirror.com'
 import torch
 import numpy as np
@@ -22,12 +20,12 @@ if __name__ == "__main__":
     videos = os.listdir(args.i)
     process=Compose([
         # Resize((720)),
-        FiveCrop(224),
+        FiveCrop(288),
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
     process2=Compose([
-        Resize(224),
-        CenterCrop(224),
+        Resize(288),
+        CenterCrop(288),
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
@@ -35,7 +33,7 @@ if __name__ == "__main__":
 
     if not os.path.exists('./cache/features/%s/' % namings[args.database]):
         os.makedirs('./cache/features/%s/' % namings[args.database])
-    for idx,video in tqdm(enumerate(videos)):
+    for idx,video in enumerate(tqdm(videos)):
         tqdm.write('Processing '+video)
         try:
             vr = VideoReader(os.path.join(args.i,video), ctx=cpu(0))
@@ -46,7 +44,7 @@ if __name__ == "__main__":
 
         frames=frames.permute(0, 3, 1, 2).to('cuda').to(torch.float16).div_(255.0)
         minHW=min(frames.shape[-1],frames.shape[-2])
-        if minHW<224:
+        if minHW<288:
             frame=process2(frames)
             frames=frame.unsqueeze(0).repeat(5,1,1,1,1)
         else:
